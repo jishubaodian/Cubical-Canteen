@@ -1,4 +1,8 @@
 # MC餐厅经营项目
+[中文](#中文内容) | [English](#english-content)
+
+<a id="中文内容"></a>
+## 中文内容
 ## 项目状态
 ⚠️ WIP 规划开发中
 暂无完整成品资源，现阶段请勿下载游玩
@@ -26,9 +30,24 @@
 ## 安装方式（正式版发布后可用）
 将 Releases 中的压缩包文件，直接拖拽进 PCL、HMCL 启动器，一键导入即可运行游玩。
 
+## 反馈与PR提交规范
+### Issue
+遇到游玩BUG、脚本报错、地图缺陷、玩法优化建议均可提交Issue；
+尽量写明触发场景，附带截图能够大幅提升问题排查效率。
+受课余时间与JS技术水平限制，问题处理会存在延迟，还望理解。
+
+### Pull Request
+项目不接受未经沟通的PR；
+若你打算提交修改类PR，请提前通过邮箱联系作者沟通确认：
+邮箱：jishubaodian@163.com
+双方商议完毕后，才可提交PR等待审核合并。
+
 ---
 
+<a id="english-content"></a>
 # MC Restaurant Management Project
+[Back to Chinese](#中文内容)
+
 ## Project Status
 ⚠️ WIP | Under Planning & Development
 No finished resources available now, please do not download for the time being.
@@ -56,3 +75,15 @@ If you record gameplay videos or stream this project, kindly credit the original
 
 ## Installation Guide (Official Release Only)
 Drag the zip file from Releases into PCL / HMCL launcher, import directly and start playing.
+
+## Feedback & Pull Request Policy
+### Issues
+Feel free to submit issues for bugs, script errors, map flaws and gameplay suggestions.
+Detailed description and screenshots will help troubleshoot efficiently.
+Due to limited spare time and insufficient JS proficiency, replies and fixes may be delayed.
+
+### Pull Requests
+Unsolicited pull requests will not be accepted.
+If you want to submit revision PRs, please contact the author via email for confirmation beforehand:
+Email: jishubaodian@163.com
+PRs can only be reviewed and merged after mutual discussion.
