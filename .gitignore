@@ -1,0 +1,10 @@
+kubejs/probe/
+kubejs/docs/
+kubejs/generated/
+kubejs/modHash.txt
+kubejs/cached*.json
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
