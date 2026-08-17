@@ -17,20 +17,20 @@ function getPhase(moment) {
 }
 
 function getDayCount(dayTime) {
-    return Math.floor(dayTime / 24000) + 1;
+    return Math.floor(dayTime / 24000);
 }
 
 function broadcast(server, msg) {
     server.runCommand('say [阶段] ' + msg);
 }
 
-// ==================== 启动时关闭命令反馈 ====================
-ForgeEvents.onEvent('net.minecraftforge.event.server.ServerStartedEvent', event => {
+// ==================== 服务器启动 ====================
+global.handleServerStarted = function(event) {
     event.getServer().runCommand('gamerule sendCommandFeedback false');
-});
+};
 
-// ==================== 服务端 Tick 事件 ====================
-ForgeEvents.onEvent('net.minecraftforge.event.TickEvent$ServerTickEvent', event => {
+// ==================== 每秒检测 ====================
+global.handleServerTick = function(event) {
     const server = event.getServer();
     const tick = server.getTickCount();
     if (tick % 20 !== 0) return;
@@ -42,6 +42,25 @@ ForgeEvents.onEvent('net.minecraftforge.event.TickEvent$ServerTickEvent', event 
     const moment = dayTime % 24000;
     const dayCount = getDayCount(dayTime);
     const newPhase = getPhase(moment);
+
+    const isRestDay = (dayCount % 5 === 0);
+    global.isRestDay = isRestDay;
+    global.currentDay = dayCount;
+
+    // 前一晚预告休息日（20:00后）
+    if (moment >= 20000 && moment < 24000) {
+        const nextDay = dayCount + 1;
+        if (nextDay % 5 === 0 && global.lastRestDayWarning !== nextDay) {
+            global.lastRestDayWarning = nextDay;
+            server.runCommand('say [预告] 明天（第' + nextDay + '天）是强制休息日！');
+        }
+    }
+
+    // 休息日当天首次检测时提示
+    if (isRestDay && global.restDayNotified !== dayCount) {
+        global.restDayNotified = dayCount;
+        server.runCommand('say [休息日] 今天（第' + dayCount + '天）是强制休息日，商店暂停营业！');
+    }
 
     if (currentPhase === null) {
         currentPhase = newPhase;
@@ -62,15 +81,16 @@ ForgeEvents.onEvent('net.minecraftforge.event.TickEvent$ServerTickEvent', event 
         }
     }
 
-    // 使用 /title 命令显示动作栏
-    const displayMsg = '§e天数: ' + dayCount + '  §a阶段: ' + currentPhase;
+    // 动作栏显示天数和阶段
+    let restTag = isRestDay ? ' §c[休息日]' : '';
+    const displayMsg = '§e天数: ' + dayCount + '  §a阶段: ' + currentPhase + restTag;
     server.getPlayers().forEach(player => {
         server.runCommand('title ' + player.getName().getString() + ' actionbar {"text":"' + displayMsg + '"}');
     });
-});
+};
 
-// ==================== 玩家登录事件 ====================
-ForgeEvents.onEvent('net.minecraftforge.event.entity.player.PlayerEvent$PlayerLoggedInEvent', event => {
+// ==================== 玩家登录 ====================
+global.handlePlayerLoggedIn = function(event) {
     const player = event.getEntity();
     const server = player.getServer();
     const level = server.getLevel('minecraft:overworld');
@@ -79,8 +99,10 @@ ForgeEvents.onEvent('net.minecraftforge.event.entity.player.PlayerEvent$PlayerLo
     const dayTime = level.getDayTime();
     const dayCount = getDayCount(dayTime);
     const phase = getPhase(dayTime % 24000);
+    const isRestDay = (dayCount % 5 === 0);
     const playerName = player.getName().getString();
 
-    server.runCommand('tellraw ' + playerName + ' {"text":"当前天数: ' + dayCount + '  阶段: ' + phase + '","color":"green"}');
-    server.runCommand('title ' + playerName + ' actionbar {"text":"§e天数: ' + dayCount + '  §a阶段: ' + phase + '"}');
-});
+    let restMsg = isRestDay ? ' (强制休息日)' : '';
+    server.runCommand('tellraw ' + playerName + ' {"text":"当前天数: ' + dayCount + '  阶段: ' + phase + restMsg + '","color":"green"}');
+    server.runCommand('title ' + playerName + ' actionbar {"text":"§e天数: ' + dayCount + '  §a阶段: ' + phase + (isRestDay ? ' §c[休息日]' : '') + '"}');
+};
