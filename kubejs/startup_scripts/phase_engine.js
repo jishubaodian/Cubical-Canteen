@@ -1,85 +1,86 @@
-// 时间阶段引擎 - 使用 ForgeEvents（放在 startup_scripts）
-
-console.log('[Phase] 引擎加载中...');
-
-// 阶段定义
+// ==================== 阶段定义 ====================
 const PHASE = {
-    PREPARATION: 'preparation',
-    BUSINESS: 'business',
-    CLOSING: 'closing',
-    REST: 'rest'
+    PREPARATION: '准备期',
+    BUSINESS: '营业期',
+    CLOSING: '打烊期',
+    REST: '休息期'
 };
 
-// 当前阶段
 let currentPhase = null;
 
-// 根据游戏刻计算阶段
-// 准备期: 5:00-6:00   → tick ∈ [23000, 24000)
-// 营业期: 6:00-18:00  → tick ∈ [0, 12000)
-// 打烊期: 18:00-20:00 → tick ∈ [12000, 14000)
-// 休息期: 20:00-5:00  → tick ∈ [14000, 23000)
-function getPhase(dayTime) {
-    const tick = dayTime % 24000;
-    if (tick >= 23000) return PHASE.PREPARATION;
-    if (tick < 12000) return PHASE.BUSINESS;
-    if (tick < 14000) return PHASE.CLOSING;
+// ==================== 辅助函数 ====================
+function getPhase(moment) {
+    if (moment >= 23000) return PHASE.PREPARATION;
+    if (moment < 12000) return PHASE.BUSINESS;
+    if (moment < 14000) return PHASE.CLOSING;
     return PHASE.REST;
 }
 
-// 发送消息到聊天框
-function broadcast(server, msg) {
-    server.runCommand('say [阶段] ' + msg);
-    console.log('[Phase] ' + msg);
+function getDayCount(dayTime) {
+    return Math.floor(dayTime / 24000) + 1;
 }
 
-// 监听服务器 tick 事件
+function broadcast(server, msg) {
+    server.runCommand('say [阶段] ' + msg);
+}
+
+// ==================== 启动时关闭命令反馈 ====================
+ForgeEvents.onEvent('net.minecraftforge.event.server.ServerStartedEvent', event => {
+    event.getServer().runCommand('gamerule sendCommandFeedback false');
+});
+
+// ==================== 服务端 Tick 事件 ====================
 ForgeEvents.onEvent('net.minecraftforge.event.TickEvent$ServerTickEvent', event => {
     const server = event.getServer();
     const tick = server.getTickCount();
-
-    // 每秒检测一次（20 tick）
     if (tick % 20 !== 0) return;
 
-    // 获取主世界
     const level = server.getLevel('minecraft:overworld');
     if (!level) return;
 
     const dayTime = level.getDayTime();
-    const newPhase = getPhase(dayTime);
+    const moment = dayTime % 24000;
+    const dayCount = getDayCount(dayTime);
+    const newPhase = getPhase(moment);
 
-    // 首次初始化
     if (currentPhase === null) {
         currentPhase = newPhase;
         broadcast(server, '当前阶段: ' + currentPhase);
-        return;
-    }
-
-    // 阶段切换
-    if (newPhase !== currentPhase) {
+    } else if (newPhase !== currentPhase) {
         const oldPhase = currentPhase;
         currentPhase = newPhase;
-
         broadcast(server, '阶段切换: ' + oldPhase + ' → ' + newPhase);
 
-        // 发送阶段提示
-        let tips = {
-            'preparation': '🕔 准备期：即将开始营业，请做好准备！',
-            'business': '☀️ 营业期：欢迎光临！顾客们正在路上。',
-            'closing': '🌆 打烊期：即将关门，请尽快完成交易！',
-            'rest': '🌙 休息期：商店已关闭，明天再会！'
+        const tips = {
+            '准备期': '🕔 准备期：即将开始营业，请做好准备！',
+            '营业期': '☀️ 营业期：欢迎光临！顾客们正在路上。',
+            '打烊期': '🌆 打烊期：即将关门，请尽快完成交易！',
+            '休息期': '🌙 休息期：商店已关闭，明天再会！'
         };
         if (tips[newPhase]) {
             server.runCommand('say [阶段] ' + tips[newPhase]);
         }
     }
+
+    // 使用 /title 命令显示动作栏
+    const displayMsg = '§e天数: ' + dayCount + '  §a阶段: ' + currentPhase;
+    server.getPlayers().forEach(player => {
+        server.runCommand('title ' + player.getName().getString() + ' actionbar {"text":"' + displayMsg + '"}');
+    });
 });
 
-// 玩家登录时告知当前阶段（使用 PlayerLoggedInEvent）
+// ==================== 玩家登录事件 ====================
 ForgeEvents.onEvent('net.minecraftforge.event.entity.player.PlayerEvent$PlayerLoggedInEvent', event => {
     const player = event.getEntity();
-    if (currentPhase) {
-        player.sendSystemMessage('当前阶段: ' + currentPhase);
-    }
-});
+    const server = player.getServer();
+    const level = server.getLevel('minecraft:overworld');
+    if (!level) return;
 
-console.log('[Phase] 引擎加载完毕！');
+    const dayTime = level.getDayTime();
+    const dayCount = getDayCount(dayTime);
+    const phase = getPhase(dayTime % 24000);
+    const playerName = player.getName().getString();
+
+    server.runCommand('tellraw ' + playerName + ' {"text":"当前天数: ' + dayCount + '  阶段: ' + phase + '","color":"green"}');
+    server.runCommand('title ' + playerName + ' actionbar {"text":"§e天数: ' + dayCount + '  §a阶段: ' + phase + '"}');
+});
