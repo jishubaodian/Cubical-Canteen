@@ -119,16 +119,26 @@
             }
         }
 
-        // 动作栏显示
-        let restTag = '';
-        if (isForcedRestDay) {
-            restTag = ' §c[法定休店日]';
-        } else if (isPlayerSelectedRest) {
-            restTag = ' §e[店主休店日]';
-        }
-
-        let displayMsg = '§e天数: ' + dayCount + '  §a时段: ' + currentPhase + restTag;
+        // ==================== 动作栏显示（含余额） ====================
         server.getPlayers().forEach(player => {
+            // 获取玩家余额
+            let balance = 0;
+            if (typeof global.getBalance === 'function') {
+                balance = global.getBalance(player);
+            }
+            let balanceStr = '$' + balance;
+            if (typeof global.formatCurrency === 'function') {
+                balanceStr = global.formatCurrency(balance);
+            }
+
+            let restTag = '';
+            if (isForcedRestDay) {
+                restTag = ' §c[法定休店日]';
+            } else if (isPlayerSelectedRest) {
+                restTag = ' §e[店主休店日]';
+            }
+
+            let displayMsg = balanceStr + ' | §e天数: ' + dayCount + '  §a时段: ' + currentPhase + restTag;
             server.runCommand('title ' + player.getName().getString() + ' actionbar {"text":"' + displayMsg + '"}');
         });
     };
@@ -153,11 +163,22 @@
 
         server.runCommand('tellraw ' + playerName + ' {"text":"当前天数: ' + dayCount + '  时段: ' + phase + restMsg + '","color":"green"}');
 
+        // 动作栏（含余额）
+        let balance = 0;
+        if (typeof global.getBalance === 'function') {
+            balance = global.getBalance(player);
+        }
+        let balanceStr = '$' + balance;
+        if (typeof global.formatCurrency === 'function') {
+            balanceStr = global.formatCurrency(balance);
+        }
+
         let restTag = '';
         if (isForcedRestDay) restTag = ' §c[法定休店日]';
         else if (isPlayerSelectedRest) restTag = ' §e[店主休店日]';
 
-        server.runCommand('title ' + playerName + ' actionbar {"text":"§e天数: ' + dayCount + '  §a时段: ' + phase + restTag + '"}');
+        let displayMsg = balanceStr + ' | §e天数: ' + dayCount + '  §a时段: ' + phase + restTag;
+        server.runCommand('title ' + playerName + ' actionbar {"text":"' + displayMsg + '"}');
 
         if (global.selectedRestDay === dayCount + 1) {
             player.sendSystemMessage('§e提示：明日（第' + (dayCount + 1) + '天）已安排店主休店日。');
