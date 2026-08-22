@@ -5,6 +5,7 @@ StartupEvents.registry('entity_type', event => {
         .attributes(attr => {
             attr.add(Attributes.MAX_HEALTH, 20.0)
             attr.add(Attributes.MOVEMENT_SPEED, 0.0001)
+            attr.add(Attributes.KNOCKBACK_RESISTANCE, 1.0)
         })
         .isPushable(false)
         .isImmobile(entity => true)
