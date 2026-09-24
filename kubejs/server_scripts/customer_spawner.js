@@ -7,13 +7,14 @@
 
     let CUSTOMER_ID = 'cubicalcanteen:customer';
     let SPAWN_POINTS = [
-        [12, -60, -4],
-        [10, -60, -3],
-        [10, -60, -2],
+        [12, -60, 0],
         [12, -60, -1],
-        [12, -60, 0]
+        [12, -60, -2],
+        [12, -60, -3],
+        [12, -60, -4]
     ];
     let SPAWN_INTERVAL_TICKS = 600;   // 30 秒一位
+    let WAIT_TICKS = 6000;            // 顾客最长等待 5 分钟（游戏刻，1 刻=0.05s），超时自动离场
     let ENABLE_AI = false;            // 顾客 AI：需实体基类为 entityjs:pathfinder 才生效，暂关
 
     let tickCounter = 0;
@@ -105,6 +106,95 @@
         return null;
     }
 
+    // ==================== 头顶订单显隐（任务 3.3）====================
+    // 玩家 8 格内显示头顶订单，远离后隐藏。顾客最多 5 个，每 tick 扫描开销可忽略。
+    const LABEL_RANGE = 8;
+
+    // 距离判断：优先用实体内置 distanceToEntity，失败退化为坐标平方差
+    function withinRange(e, p) {
+        try {
+            return e.distanceToEntity(p) <= LABEL_RANGE;
+        } catch (err) {
+            try {
+                let dx = e.getX() - p.getX();
+                let dy = e.getY() - p.getY();
+                let dz = e.getZ() - p.getZ();
+                return (dx * dx + dy * dy + dz * dz) <= LABEL_RANGE * LABEL_RANGE;
+            } catch (err2) {
+                return false;
+            }
+        }
+    }
+
+    function updateCustomerLabels(level) {
+        try {
+            let players = [];
+            try {
+                let s = Utils.server;
+                if (s && typeof s.getPlayers === 'function') players = toJsArray(s.getPlayers());
+            } catch (err) {
+            }
+            if (players.length === 0) return;
+
+            let box = AABB.of(6, -62, -7, 16, -56, 3);
+            let arr = toJsArray(level.getEntitiesWithin(box));
+            for (let i = 0; i < arr.length; i++) {
+                let e = arr[i];
+                if (!e) continue;
+                let isCustomer = false;
+                try {
+                    isCustomer = e.persistentData && e.persistentData.contains('cc_customer');
+                } catch (err) {
+                }
+                if (!isCustomer) continue;
+                let near = false;
+                for (let j = 0; j < players.length; j++) {
+                    if (withinRange(e, players[j])) { near = true; break; }
+                }
+                try {
+                    e.setCustomNameVisible(near);
+                } catch (err) {
+                }
+            }
+        } catch (e) {
+            console.log('[顾客生成] 更新订单显隐失败: ' + e);
+        }
+    }
+
+    // ==================== 顾客离场（打烊清场 + 超时，任务 3.9 简化版）====================
+    // 打烊 / 休店时清走所有顾客；营业中但等待超过 WAIT_TICKS 也自动离场。
+    function checkCustomerLeave(level, server, info) {
+        try {
+            let box = AABB.of(6, -62, -7, 16, -56, 3);
+            let arr = toJsArray(level.getEntitiesWithin(box));
+            let now = server.getTickCount();
+            let closed = !!(info && (info.isRestDay === true || info.phase !== '营业中'));
+            for (let i = 0; i < arr.length; i++) {
+                let e = arr[i];
+                if (!e) continue;
+                let isCustomer = false;
+                try {
+                    isCustomer = e.persistentData && e.persistentData.contains('cc_customer');
+                } catch (err) {
+                }
+                if (!isCustomer) continue;
+                let leave = false;
+                if (closed) {
+                    leave = true;
+                } else {
+                    try {
+                        let born = e.persistentData.getInt('spawn_tick');
+                        if (now - born > WAIT_TICKS) leave = true;
+                    } catch (err) {
+                    }
+                }
+                if (leave) e.discard();
+            }
+        } catch (e) {
+            console.log('[顾客生成] 顾客离场检查失败: ' + e);
+        }
+    }
+
     // ==================== AI ====================
     // 只有基类是 entityjs:pathfinder 时才有 goalSelector，否则直接跳过
     function applyAi(entity) {
@@ -123,21 +213,40 @@
     }
 
     // ==================== 生成顾客 ====================
-    // 阶段 3 的订单在这里写入，例如 entity.persistentData.putString('order_dish', dishId)
-    function setOrder(entity, dishId) {
+    // 订单由 order_api.js 生成并写入顾客 NBT（任务 3.4）
+    function setOrder(entity) {
+        try {
+            if (typeof global.assignOrder !== 'function') return null;
+            let order = global.assignOrder(entity);
+            if (order) {
+                console.log('[顾客生成] 订单: ' + order.main + (order.drink ? ' + ' + order.drink : '') + '  $' + order.price);
+            }
+            return order;
+        } catch (e) {
+            console.log('[顾客生成] 生成订单失败: ' + e);
+            return null;
+        }
     }
 
-    function setDisplayName(entity, name) {
+    // 头顶只显示菜名：不再拼接"顾客"前缀（用户要求只要菜名，不要别的）
+    function setDisplayName(entity) {
+        let text = '顾客';   // 兜底名，正常会被订单菜名覆盖
+        try {
+            if (typeof global.getOrderDisplayText === 'function') {
+                let order = global.getOrderDisplayText(entity);
+                if (order) text = order;
+            }
+        } catch (e) {
+            console.log('[顾客生成] 读取订单文本失败: ' + e);
+        }
         try {
             let Component = Java.loadClass('net.minecraft.network.chat.Component');
-            entity.setCustomName(Component.literal(name));
-            entity.setCustomNameVisible(true);
+            entity.setCustomName(Component.literal(text));
             return true;
         } catch (e) {
         }
         try {
-            entity.customName = name;
-            entity.setCustomNameVisible(true);
+            entity.customName = text;
             return true;
         } catch (e) {
             console.log('[顾客生成] 设置名称失败（不影响生成）: ' + e);
@@ -154,7 +263,7 @@
         }
     }
 
-    function spawnByApi(level, x, y, z) {
+    function spawnByApi(server, level, x, y, z) {
         try {
             let entity = level.createEntity(CUSTOMER_ID);
             if (!entity) {
@@ -163,8 +272,9 @@
             }
             entity.setPosition(x + 0.5, y, z + 0.5);
             markAsCustomer(entity);
-            setDisplayName(entity, '顾客');
-            setOrder(entity, null);
+            try { entity.persistentData.putInt('spawn_tick', server.getTickCount()); } catch (e) {} // 记录生成时刻，用于超时离场
+            setOrder(entity);                 // 先把订单写入 NBT
+            setDisplayName(entity);             // 头顶只显示菜名
             level.addFreshEntity(entity);
             applyAi(entity);
             console.log('[顾客生成] 生成成功 @ (' + (x + 0.5) + ', ' + y + ', ' + (z + 0.5) + ')');
@@ -216,8 +326,18 @@
     // ==================== 主循环 ====================
     ServerEvents.tick(function(event) {
         try {
+            let server = event.server;
+            if (!server) return;
+            let level = server.overworld();
+            if (!level) return;
+
             let info = getPhaseInfo();
-            if (!info) return;
+
+            // 每 tick 维护：头顶订单显隐（3.3）+ 离场检查（打烊清场 / 超时，3.9 简化）
+            updateCustomerLabels(level);
+            checkCustomerLeave(level, server, info);
+
+            if (!info) { tickCounter = 0; return; }
             if (info.isRestDay === true) {           // 法定休店日 或 店主自选休店日
                 tickCounter = 0;
                 return;
@@ -226,11 +346,6 @@
                 tickCounter = 0;
                 return;
             }
-
-            let server = event.server;
-            if (!server) return;
-            let level = server.overworld();
-            if (!level) return;
 
             tickCounter++;
             if (tickCounter < SPAWN_INTERVAL_TICKS) return;
@@ -242,7 +357,7 @@
                 return;
             }
 
-            let ok = spawnByApi(level, seat[0], seat[1], seat[2]);
+            let ok = spawnByApi(server, level, seat[0], seat[1], seat[2]);
             if (!ok) {
                 ok = spawnBySummon(server, seat[0], seat[1], seat[2]);
             }
