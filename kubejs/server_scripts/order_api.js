@@ -135,44 +135,50 @@
 
     // ==================== 订单展示文本 ====================
     // 读取顾客身上的订单，拼成头顶显示用的多行文本（任务 3.3）。
-    // 菜品显示名优先取物品注册表的中文名；取不到时退化为可读 ID，保证不出空。
-    // 中文显示名映射：注册表取不到中文（如英文客户端）时的兜底，可自行修改
+    // 中文名以「游戏内 / JEI 实际显示名」为准：
+    //   优先取游戏内真实物品名（中文客户端即 JEI 显示的那行中文）；
+    //   取不到（如非中文客户端）时退回 DISH_NAMES。
+    // DISH_NAMES 的值以用户指定的权威源为准（2026-09-19 起）：
+    //   versions/block/packmaster_dumps/2ecdfe1c864a/20260819_132117/
+    //   datasets/registries/items/by_mod/cuisinedelight/*.json 的 display_name
+    //   （= 游戏内/JEI 实际中文名）。21 个菜名已逐条与该 dump 核对一致；
+    //   该 dump 仅含 display_name / max_stack_size / rarity，不含价格与品质字段。
     const DISH_NAMES = {
+        'cuisinedelight:fried_meat_and_melon': '西瓜炒肉',
         'cuisinedelight:fried_mushroom': '炒蘑菇',
-        'cuisinedelight:scrambled_egg_and_tomato': '番茄炒蛋',
-        'cuisinedelight:fried_rice': '蛋炒饭',
-        'cuisinedelight:vegetable_fried_rice': '蔬菜炒饭',
-        'cuisinedelight:vegetable_pasta': '蔬菜意面',
-        'cuisinedelight:vegetable_platter': '蔬菜拼盘',
-        'cuisinedelight:fried_meat_and_melon': '苦瓜炒肉',
         'cuisinedelight:fried_pasta': '炒意面',
+        'cuisinedelight:fried_rice': '炒饭',
         'cuisinedelight:ham_fried_rice': '火腿炒饭',
-        'cuisinedelight:meat_fried_rice': '肉炒饭',
+        'cuisinedelight:meat_fried_rice': '肉粒炒饭',
         'cuisinedelight:meat_pasta': '肉酱意面',
-        'cuisinedelight:meat_with_vegetables': '肉炒蔬菜',
+        'cuisinedelight:meat_platter': '小炒肉',
+        'cuisinedelight:meat_with_seafood': '海味炒肉',
+        'cuisinedelight:meat_with_vegetables': '时蔬炒肉',
         'cuisinedelight:mixed_fried_rice': '什锦炒饭',
-        'cuisinedelight:mixed_pasta': '什锦意面',
-        'cuisinedelight:seafood_with_vegetables': '海鲜炒蔬菜',
-        'cuisinedelight:meat_platter': '肉拼盘',
-        'cuisinedelight:meat_with_seafood': '肉炒海鲜',
+        'cuisinedelight:mixed_pasta': '杂炒意面',
+        'cuisinedelight:scrambled_egg_and_tomato': '番茄炒蛋',
         'cuisinedelight:seafood_fried_rice': '海鲜炒饭',
         'cuisinedelight:seafood_pasta': '海鲜意面',
-        'cuisinedelight:seafood_platter': '海鲜拼盘',
-        'cuisinedelight:suspicious_mix': '可疑料理'
+        'cuisinedelight:seafood_platter': '炒海鲜',
+        'cuisinedelight:seafood_with_vegetables': '时蔬海鲜',
+        'cuisinedelight:suspicious_mix': '可疑的大杂烩',
+        'cuisinedelight:vegetable_fried_rice': '蔬菜炒饭',
+        'cuisinedelight:vegetable_pasta': '蔬菜意面',
+        'cuisinedelight:vegetable_platter': '炒时蔬'
     };
 
     function dishName(dishId) {
         if (!dishId) return '';
-        // 优先取注册表名称：游戏语言为中文时即为模组准确中文名
+        // 优先：游戏内真实物品名（中文客户端下即 JEI 显示的那行中文）
         try {
             let comp = Item.of(dishId).getName();
             let s = (typeof comp.getString === 'function') ? comp.getString() : String(comp);
             if (s && /[\u4e00-\u9fff]/.test(s)) return s.trim();
         } catch (e) {
         }
-        // 英文客户端等取不到中文时，用内置中文名兜底
+        // 退回：物品数据 dump 的 display_name（= JEI 实际中文名）
         if (DISH_NAMES[dishId]) return DISH_NAMES[dishId];
-        // 兜底：可读 ID
+        // 再兜底：可读 ID
         let raw = String(dishId).split(':').pop();
         return raw.replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
     }

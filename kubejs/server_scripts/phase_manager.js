@@ -132,6 +132,17 @@
         return '$' + v;
     }
 
+    // 动作栏用的声望文本：声望是全店共享值（reputation_api.js），无玩家维度
+    function reputationText() {
+        let v = 0;
+        try {
+            if (typeof global.getReputation === 'function') v = global.getReputation();
+        } catch (e) {
+            v = 0;
+        }
+        return '§b声望: ' + v;
+    }
+
     // ==================== 持久化层 ====================
     // 优先写入世界持久化数据（level / server 的 persistentData），
     // 失败时退化为内存缓存并在控制台提示一次：功能仍可用，但重启后选择会丢。
@@ -348,7 +359,8 @@
                 if (!player) continue;
                 let name = playerName(player);
                 if (!name) continue;
-                let msg = balanceText(player) + ' | §e天数: ' + dayCount + '  §a时段: ' + state.phase + restTag;
+                // 声望显示在金额左边（用户要求）；动作栏每秒刷新，声望随交付实时更新
+                let msg = reputationText() + ' | ' + balanceText(player) + ' | §e天数: ' + dayCount + '  §a时段: ' + state.phase + restTag;
                 runSilent(server, 'title ' + name + ' actionbar {"text":"' + msg + '"}');
             }
         } catch (e) {

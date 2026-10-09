@@ -178,17 +178,31 @@
                 } catch (err) {
                 }
                 if (!isCustomer) continue;
-                let leave = false;
+                let reason = null;   // 'closed' 打烊/休店清场，'timeout' 等太久
                 if (closed) {
-                    leave = true;
+                    reason = 'closed';
                 } else {
                     try {
                         let born = e.persistentData.getInt('spawn_tick');
-                        if (now - born > WAIT_TICKS) leave = true;
+                        if (now - born > WAIT_TICKS) reason = 'timeout';
                     } catch (err) {
                     }
                 }
-                if (leave) e.discard();
+                if (reason) {
+                    if (reason === 'timeout') {
+                        // 3.8 补声望：超时离场扣声望（按 2.4 的 1★ 标准 -2），只扣超时、不打烊清场
+                        try {
+                            let delta = -2;
+                            if (typeof global.getStarEffects === 'function') delta = global.getStarEffects(1).repDelta;
+                            if (typeof global.addReputation === 'function') global.addReputation(delta);
+                            if (typeof global.recordRating === 'function') global.recordRating(1);
+                        } catch (err) {
+                            console.log('[顾客生成] 超时扣声望失败: ' + err);
+                        }
+                        try { runCommand(server, 'say [餐厅] 顾客等太久离开了，店铺声望 -2'); } catch (err) {}
+                    }
+                    e.discard();
+                }
             }
         } catch (e) {
             console.log('[顾客生成] 顾客离场检查失败: ' + e);
